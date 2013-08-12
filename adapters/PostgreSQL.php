@@ -216,7 +216,7 @@ class PostgreSQLAdapter implements IDataBaseAdapter {
 	 * @return int|bool
 	 *     Returns last id or FALSE on failure.
 	 */
-	public function getLastId ($link, $table_name) {
+	public function getLastId ($link, $table_name = '') {
 
 		$ret      = pg_query($link, "SELECT * FROM " . $table_name . " LIMIT 1");
 		$campo_id = pg_field_name($ret, 0);
