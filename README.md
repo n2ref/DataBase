@@ -1,7 +1,8 @@
 DataBase
 ========
 
-The class to use a database
+Class for using the database, with the ability to use different adapters such as 'Mysqli', 'PostgreSQL', 'Mssql' and some other
+
 
 
 Simple example, initialize and select 
