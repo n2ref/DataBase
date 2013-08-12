@@ -1,7 +1,7 @@
 <?php
 
 require_once(__DIR__.'/../adapter_interface.php');
-require_once(__DIR__.'/../exeptions.php');
+require_once(__DIR__.'/../exceptions.php');
 
 /**
  *  Adapter mysql for mysql server
