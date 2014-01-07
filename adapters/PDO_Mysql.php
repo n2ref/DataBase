@@ -129,7 +129,6 @@ class PDO_MysqlAdapter implements IDBAdapter {
         $stmt->closeCursor();
         $result = $stmt->execute();
 
-
         return $result;
     }
 

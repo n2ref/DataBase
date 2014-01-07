@@ -8,7 +8,7 @@ require_once ('exceptions.php');
  * @author Шабунин Игорь <mailforshinji@gmail.com>
  *
  * @version 0.9
- * @since 2014-01-07
+ * @since 2014-01-06
  *
  * Класс, для использования базы данных
  */
@@ -20,7 +20,7 @@ class DB {
      * @var mixed
      */
     private $db;
-
+    
 
     /**
      * Класс адаптер для работы с базой данных
@@ -30,14 +30,7 @@ class DB {
 
 
     /**
-     * Перечисление для биндинга параметров в запрос
-     * @var int
-     */
-    private $num_parameter = 1;
-
-
-    /**
-     * Подключение к базе
+     * Подключение к базе 
      *
      * @param string $adapter_name  Название адаптера
      * @param string $host          Название хоста для подключения
@@ -85,7 +78,7 @@ class DB {
 
     /**
      * Вызов метода в дискрипторе подключения
-     *
+     * 
      * @param string $method_name
      *     Название метода
      * @param array $args
@@ -101,7 +94,7 @@ class DB {
 
         if (method_exists($this->db, $method_name)) {
             return call_user_func_array(array($this->db, $method_name), $args);
-
+        
         } else {
             throw new Helly_DataBase_Exception("Method '$method_name' not exists");
         }
@@ -110,8 +103,8 @@ class DB {
 
     /**
      * Выполняет запрос
-     *
-     * @param string $sql
+     * 
+     * @param string $sql 
      *      Строка содержащая запрос к базе
      * @param string|array $bind_params
      *      Параметры входящие в запрос каторые
@@ -155,15 +148,17 @@ class DB {
      */
     private function bindValue ($stmt, $values) {
 
+        $num_parameter = 1;
+
         if (is_string($values) || is_numeric($values)) {
-            $stmt->bindValue($this->num_parameter++, $values);
+            $this->adapter->bindValue($stmt, $num_parameter++, $values);
 
         } elseif (is_array($values)) {
             foreach ($values as $key=>$value) {
                 if (is_string($key)) {
-                    $stmt->bindValue(':' . $key, $value);
+                    $this->adapter->bindValue($stmt, ':' . $key, $value);
                 } else {
-                    $stmt->bindValue($this->num_parameter++, $value);
+                    $this->adapter->bindValue($stmt, $num_parameter++, $value);
                 }
             }
         }
@@ -247,14 +242,14 @@ class DB {
 
         $query_data = array();
 
-        $query_data['fields']          = array();
-        $query_data['value_fields']    = array();
-        $query_data['params']['table'] = $table;
+        $query_data['fields']       = array();
+        $query_data['value_fields'] = array();
+        $query_data['params']       = array();
 
         foreach ($data as $name=>$value) {
             if (is_string($value) || is_numeric($value)) {
-                $query_data['fields'][]       = ':' . $name;
-                $query_data['value_fields'][] = $name;
+                $query_data['fields'][]       = $name;
+                $query_data['value_fields'][] = ':' . $name;
                 $query_data['params'][$name]  = $value;
             }
         }
@@ -263,7 +258,7 @@ class DB {
         $implode_value_fields = implode(', ', $query_data['value_fields']);
 
         $query = array(
-            'sql'    => "INSERT INTO :table ({$implode_fields}) VALUES ({$implode_value_fields})",
+            'sql'    => "INSERT INTO {$table} ({$implode_fields}) VALUES ({$implode_value_fields})",
             'params' => $query_data['params']
         );
 
@@ -325,15 +320,20 @@ class DB {
     public function fetchAll ($sql, $bind_params = '') {
 
         $stmt = $this->adapter->prepare($this->db, $sql);
-        if ($bind_params) $this->bindValue($stmt, $bind_params);
-        $result = $this->adapter->execute($stmt);
 
-        if ($result === false) {
-            trigger_error($this->adapter->error($stmt), E_USER_WARNING);
-            return false;
+        if ($stmt) {
+            if ($bind_params) $this->bindValue($stmt, $bind_params);
+            $result = $this->adapter->execute($stmt);
+
+            if ($result === false) {
+                trigger_error($this->adapter->error($stmt), E_USER_WARNING);
+                return false;
+            }
+
+            return $this->adapter->fetchAll($stmt);
         }
 
-        return $this->adapter->fetchAll($stmt);
+        return false;
     }
 
 
@@ -353,15 +353,20 @@ class DB {
     public function fetchRow ($sql, $bind_params = '') {
 
         $stmt = $this->adapter->prepare($this->db, $sql);
-        if ($bind_params) $this->bindValue($stmt, $bind_params);
-        $result = $this->adapter->execute($stmt);
 
-        if ($result === false) {
-            trigger_error($this->adapter->error($stmt), E_USER_WARNING);
-            return false;
+        if ($stmt) {
+            if ($bind_params) $this->bindValue($stmt, $bind_params);
+            $result = $this->adapter->execute($stmt);
+
+            if ($result === false) {
+                trigger_error($this->adapter->error($stmt), E_USER_WARNING);
+                return false;
+            }
+
+            return $this->adapter->fetchRow($stmt);
         }
 
-        return $this->adapter->fetchRow($stmt);
+        return false;
     }
 
 
@@ -381,15 +386,20 @@ class DB {
     public function fetchCol ($sql, $bind_params = '') {
 
         $stmt = $this->adapter->prepare($this->db, $sql);
-        if ($bind_params) $this->bindValue($stmt, $bind_params);
-        $result = $this->adapter->execute($stmt);
 
-        if ($result === false) {
-            trigger_error($this->adapter->error($stmt), E_USER_WARNING);
-            return false;
+        if ($stmt) {
+            if ($bind_params) $this->bindValue($stmt, $bind_params);
+            $result = $this->adapter->execute($stmt);
+
+            if ($result === false) {
+                trigger_error($this->adapter->error($stmt), E_USER_WARNING);
+                return false;
+            }
+
+            return $this->adapter->fetchCol($stmt, 1);
         }
 
-        return $this->adapter->fetchCol($stmt, 1);
+        return false;
     }
 
 
@@ -409,15 +419,20 @@ class DB {
     public function fetchPairs ($sql, $bind_params = '') {
 
         $stmt = $this->adapter->prepare($this->db, $sql);
-        if ($bind_params) $this->bindValue($stmt, $bind_params);
-        $result = $this->adapter->execute($stmt);
 
-        if ($result === false) {
-            trigger_error($this->adapter->error($stmt), E_USER_WARNING);
-            return false;
+        if ($stmt) {
+            if ($bind_params) $this->bindValue($stmt, $bind_params);
+            $result = $this->adapter->execute($stmt);
+
+            if ($result === false) {
+                trigger_error($this->adapter->error($stmt), E_USER_WARNING);
+                return false;
+            }
+
+            return $this->adapter->fetchPairs($stmt);
         }
 
-        return $this->adapter->fetchPairs($stmt);
+        return false;
     }
 
 
@@ -436,24 +451,30 @@ class DB {
     public function fetchOne ($sql, $bind_params = '') {
 
         $stmt = $this->adapter->prepare($this->db, $sql);
-        if ($bind_params) $this->bindValue($stmt, $bind_params);
-        $result = $this->adapter->execute($stmt);
 
-        if ($result === false) {
-            trigger_error($this->adapter->error($stmt), E_USER_WARNING);
-            return false;
+        if ($stmt) {
+
+            if ($bind_params) $this->bindValue($stmt, $bind_params);
+            $result = $this->adapter->execute($stmt);
+
+            if ($result === false) {
+                trigger_error($this->adapter->error($stmt), E_USER_WARNING);
+                return false;
+            }
+
+            return $this->adapter->fetchOne($stmt);
         }
 
-        return $this->adapter->fetchOne($stmt);
+        return false;
     }
 
 
     /**
-     * Возврашение идентифиикатора последней
+     * Возврашение идентифиикатора последней 
      * добаленной записи
-     *
+     * 
      * @param string $table_name
-     *     Название таблицы из которой
+     *     Название таблицы из которой 
      *     нужно вернуть идентифкатор.
      *     Используется только с базами данных postgre sql
      *
@@ -472,7 +493,7 @@ class DB {
      * @return void
      */
     public function close () {
-
+        
         $this->adapter->close($this->db);
     }
 }
