@@ -1,168 +1,226 @@
 <?php
 
-require_once(__DIR__.'/../adapter_interface.php');
+
+require_once(__DIR__ . '/../adapter_interface.php');
+
 
 /**
- *  Adapter mysqli for mysql server
+ *  Адаптер mysqli для mysql server
  */
-class MysqliAdapter implements IDataBaseAdapter {
+class MysqliAdapter implements IDBAdapter {
+
+
+    /**
+     * Подключение к базе
+     *
+     * @param string $host          Название хоста для подключения
+     * @param string|int $port      Номер порта для подключения
+     * @param string $basename      Название базы данных
+     * @param string $user          Логин пользователя
+     * @param string $pass          Пароль пользователя
+     * @param string $charset       Кодировка подключения
+     * @param string $time_zone     Временная зона
+     *
+     * @return mysqli
+     *      Возвращает объект, представляющий подключение к серверу MySQL.
+     */
+    public function connect ($host, $port = '', $basename, $user, $pass = '', $charset = 'utf8', $time_zone = '') {
+
+        $link = mysqli_connect($host, $user, $pass, $basename, $port);
+
+        if ($link) {
+            mysqli_set_charset($link, $charset);
+
+            if ($time_zone) {
+                $stmt = $this->prepare($link, "SET time_zone = ?");
+                $stmt->bind_param('s', $time_zone);
+                $stmt->execute();
+            }
+        }
+
+        return $link;
+    }
 
 
 	/**
-	 * Connect to database
-	 * 
-	 * @param string $host
-	 *      The host name that holds your database
-	 * @param string $basename
-	 *      Name of the database to which you want 
-	 *      to connect
-	 * @param string $user
-	 *      User name under which it will connect 
-	 *      to the database
-	 * @param string $pass 
-	 *      Password to connect to the database 
-	 *      for the specified user
-	 * @return mysqli
-	 *      Object that represents the connection 
-	 *      to the MySQL server
-	 */
-	public function connect ($host, $basename, $user, $pass = '') {
-		
-		return mysqli_connect($host, $user, $pass, $basename);
-	}
-
-
-	/**
-	 * Description of the connection error
-	 * 
-	 * @param mysqli $link
-	 *      Connection identifier
+     * Получение описания последней ошибки
+     *
+	 * @param mysqli|null $link
+     *      Объект mysqli
+     *
 	 * @return string
-	 *       A string that describes the error. 
-	 *       NULL is returned if no error occurred. 
+     *      Текст ошибки
 	 */
-	public function connectError ($link) {
+	public function connectError ($link = null) {
 		
 		return mysqli_connect_error();
 	}
 
-	
-	/**
-	 * Number of connection errors
-	 * 
-	 * @param mysqli $link
-	 *      Connection identifier
-	 * @return string
-	 *       An error code value for the last call to mysqli_connect(), 
-	 *       if it failed. zero means no error occurred. 
-	 */
-	public function connectErrno ($link) {
-		
-		return mysqli_connect_errno();
-	}
-
 
 	/**
-	 * Returns the error code for the most recent function call
-	 * 
+     * Получение описания последней ошибки
+     *
 	 * @param mysqli $link
-	 *     A link identifier
+     *      Объект mysqli
+     *
 	 * @return string
-	 *     Returns the error text from the last MySQL function, 
-	 *     or '' (empty string) if no error occurred. 
+     *      Текст ошибки
 	 */
 	public function error ($link) {
 		
 		return mysqli_error($link);
 	}
 
-	
-	/**
-	 * Returns the error code for the most recent function call
-	 *
-	 * @param mysqli $link
-	 *     A link identifier
-	 * @return int
-	 *     An error code value for the last call, if it failed. 
-	 *     zero means no error occurred. 
-	 */
-	public function errno ($link) {
-		
-		return mysqli_errno($link);
-	}
 
-	/**
-	 * Escapes special characters in a string for use in an SQL statement, 
-	 * taking into account the current charset of the connection
-	 * 
-	 * @param mysqli $link
-	 *      A link identifier 
-	 * @param string $escapestr
-	 *      The string to be escaped
-	 * @return string
-	 *      Returns an escaped string. 
-	 */
-	public function escapeString ($link, $escapestr) {
+    /**
+     * Подготовка запроса к выполнению
+     *
+     * @param mysqli $link
+     *      Объект mysqli
+     * @param string $query
+     *      Текст запроса
+     *
+     * @return mysqli_stmt|bool
+     *      Возвращает объект запроса или FALSE в случае ошибки.
+     */
+    public function prepare ($link, $query) {
 
-		return mysqli_real_escape_string($link, $escapestr);
+		return mysqli_prepare($link, $query);
 	}
 
 
+    /**
+     * Привязка переменных к параметрам подготавливаемого запроса
+     *
+     * @param mysqli_stmt $stmt
+     *      Объект mysqli_stmt
+     * @param string $parameter
+     *      Название параметра (в данном адаптаре не используется)
+     * @param string $value
+     *      Значение связываемое с запросом
+     * @param string $data_type
+     *      Тип значения переменной $value.
+     *      Может быть:
+     *      s - string
+     *      d - double
+     *      i - integer
+     *      b - blob
+     *
+     * @return bool
+     *      Возвращает TRUE в случае успешного завершения
+     *      или FALSE в случае возникновения ошибки.
+     */
+    public function bindValue ($stmt, $parameter = '', $value, $data_type = 's') {
+
+		return mysqli_stmt_bind_param($stmt, $data_type, $value);
+	}
+
+
+    /**
+     * Выполняет подготовленный запрос
+     *
+     * @param mysqli_stmt $stmt
+     *      Объект mysqli_stmt
+     *
+     * @return bool
+     *      Возвращает TRUE в случае успешного завершения
+     *      или FALSE в случае возникновения ошибки.
+     */
+    public function execute ($stmt) {
+
+		return mysqli_stmt_execute($stmt);
+	}
+
+
 	/**
-	 * Performs a query on the database
-	 * 
-	 * @param mysqli $link
-	 *      A link identifier 
+     * Выполняет запрос к базе данных
+     *
+     * @param mysqli $link
+     *      Объект mysqli
 	 * @param string $query
-	 *      The query string
-	 * @return mixed
-	 *      Returns FALSE on failure. 
-	 *      For successful SELECT, SHOW, DESCRIBE or EXPLAIN queries mysqli_query() 
-	 *      will return a mysqli_result object. 
-	 *      For other successful queries mysqli_query() will return TRUE. 
-	 */
+     *      Текст запроса
+     *
+	 * @return mysqli_result|bool
+     *      Возвращает FALSE в случае неудачи.
+     *      В случае успешного выполнения запросов SELECT, SHOW, DESCRIBE или EXPLAIN
+     *      mysqli_query() вернет объект mysqli_result.
+     *      Для остальных успешных запросов mysqli_query() вернет TRUE.
+     */
 	public function query ($link, $query) {
 
 		return mysqli_query($link, $query);
 	}
 
 
-	/**
-	 * Performs a query on the database
-	 * 
-	 * @param mysqli $link
-	 *      A link identifier 
-	 * @param string $query
-	 *      The query, as a string
-	 * @return bool
-	 *      Returns FALSE if the first statement failed. 
-	 *      To retrieve subsequent errors from other statements 
-	 *      you have to call mysqli_next_result() first. 
-	 */
-	public function multyQuery ($link, $query) {
+    /**
+     * Начало транзакции
+     *
+     * @param mysqli $link
+     *      Объект mysqli
+     *
+     * @return bool
+     *      Возвращает TRUE в случае успешного завершения
+     *      или FALSE в случае возникновения ошибки.
+     */
+    public function beginTransaction ($link) {
 
-		return mysqli_multi_query($link, $query);
+        if (function_exists('mysqli_begin_transaction')) {
+            return mysqli_begin_transaction($link);
+        } else {
+            return mysqli_autocommit($link, false);
+        }
+	}
+
+
+    /**
+     * Фиксирует транзакцию
+     *
+     * @param mysqli $link
+     *      Объект mysqli
+     *
+     * @return bool
+     *      Возвращает TRUE в случае успешного завершения
+     *      или FALSE в случае возникновения ошибки.
+     */
+    public function commit ($link) {
+
+		return mysqli_commit($link);
+	}
+
+
+    /**
+     * Откатывает изменения в базе данных сделанные в рамках текущей транзакции,
+     *
+     * @param mysqli $link
+     *      Объект mysqli
+     *
+     * @return bool
+     *      Возвращает TRUE в случае успешного завершения
+     *      или FALSE в случае возникновения ошибки.
+     */
+    public function rollback ($link) {
+
+		return mysqli_rollback($link);
 	}
 
 
 	/**
-	 * Gets the first value of the first row of the query result
-	 * 
+     * Возващает резельтат запроса с первым значением поля,
+     * из первой строки запроса
+     *
 	 * @param mysqli_result $result
-	 *      A result set identifier
+     *      Объект mysqli_result
+     *
 	 * @return string
-	 *      Returns the first value of the 
-	 *      first row of the query result
+     *      Первое значение из запроса,
+     *      либо false в случае ошибки
 	 */
 	public function fetchOne ($result) {
 
 		$row    = mysqli_fetch_assoc($result);	
 		$return = '';
 		if (is_array($row)) {
-			foreach ($row as $value) {
-				$return = $value;
-				break;
-			}			
+			return current($row);
 		}
 
 		return $return;
@@ -170,100 +228,174 @@ class MysqliAdapter implements IDataBaseAdapter {
 
 
 	/**
-	 * Get a result row as an enumerated array
-	 * 
+     * Возващает результат запроса с первой строкой
+     * из результата запроса
+     *
 	 * @param mysqli_result $result
-	 *     A result set identifier
-	 * @return mixed
-	 *     Returns an array of strings that corresponds to the fetched row 
-	 *     or NULL if there are no more rows in result set. 
+     *      Объект mysqli_result
+     *
+	 * @return array
+     *      Результирующий массив данных
 	 */
 	public function fetchRow ($result) {
 
 		return mysqli_fetch_assoc($result);
 	}
+
+
+	/**
+     * Возващает результат запроса с указанным столбцом
+     * из результата запроса
+     *
+	 * @param mysqli_result $result
+     *      Объект mysqli_result
+	 * @param int $column_number
+     *      Номер необходимого столбца
+     *
+	 * @return array
+     *      Результирующий массив данных
+	 */
+	public function fetchCol ($result, $column_number = 0) {
+
+        $column        = array();
+        $column_number = $column_number > 0
+            ? $column_number - 1
+            : 0;
+
+        // compatibility layer with PHP < 5.3
+        if (function_exists('mysqli_fetch_all')) {
+            $res = mysqli_fetch_all($result, MYSQLI_ASSOC);
+
+            foreach ($res as $r) {
+                $i = 0;
+                foreach ($r as $value) {
+                    if ($i++ == $column_number) {
+                        $column[] = $value;
+                        break;
+                    }
+                }
+            }
+
+        } else {
+            while ($tmp = mysqli_fetch_array($result)) {
+                $i = 0;
+                foreach ($tmp as $value) {
+                    if ($i++ == $column_number) {
+                        $column[] = $value;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return $column;
+	}
+
+
+	/**
+     * Возващает результат запроса в виде одномерного массива
+     * ключами которого выступает первое поле из запроса, а значениями второе поле
+     *
+	 * @param mysqli_result $result
+     *      Объект mysqli_result
+     *
+	 * @return array
+     *      Результирующий массив данных
+	 */
+	public function fetchPairs ($result) {
+
+        $pairs = array();
+
+        // compatibility layer with PHP < 5.3
+        if (function_exists('mysqli_fetch_all')) {
+            $res = mysqli_fetch_all($result, MYSQLI_ASSOC);
+
+            foreach ($res as $r) {
+                $pairs[current($r)] = next($r);
+            }
+
+        } else {
+            while ($tmp = mysqli_fetch_array($result)) {
+                $pairs[current($tmp)] = next($tmp);
+            }
+        }
+
+        return $pairs;
+	}
 	
 
 	/**
-	 * Fetches all result rows as an associative array
-	 * 
+     * Возващает результат запроса со всеми записями
+     *
 	 * @param mysqli_result $result
-	 *     A result set identifier
+     *      Объект mysqli_result
+     *
 	 * @return array
-	 *     Returns an array of associative
+     *      Результирующий массив данных
 	 */
 	public function fetchAll ($result) {
 
-		$res = array();
+		$result = array();
 
-		# Compatibility layer with PHP < 5.3
-		if (function_exists('mysqli_fetch_all')) { 
-            $res = mysqli_fetch_all($result, MYSQLI_ASSOC);
+	    // compatibility layer with PHP < 5.3
+		if (function_exists('mysqli_fetch_all')) {
+            $result = mysqli_fetch_all($result, MYSQLI_ASSOC);
         
         } else {
         	while ($tmp = mysqli_fetch_array($result)) {
-        		$res[] = $tmp;
+                $result[] = $tmp;
         	}
         }
 
-        return $res;
+        return $result;
 	}
 
 
 	/**
-	 * Gets the number of rows in a result
-	 * 
-	 * @param mysqli_result $result
-	 *     A result set identifier
-	 * @return int|string
-	 *     Returns number of rows in the result set.
-	 *     If the number of rows is greater than MAXINT, the number will be returned as a string. 
-	 */
-	public function getNumRows ($result) {
+     * Возвращает количество строк, измененных в процессе выполнения запроса
+     *
+	 * @param mysqli_result $link
+     *      Объект mysqli_result
+     *
+	 * @return int|bool
+     *      Возвращает число затронутых строк в виде integer, либо FALSE при ошибке.
+     */
+	public function affectedRows ($link) {
 
-		return mysqli_num_rows($result);
+        $count = mysqli_affected_rows($link);
+		return $count == -1 ? false : $count;
 	}
 
 
 	/**
-	 * Returns the auto generated id used in the last query
-	 * 
+     * Возвращает ID последней вставленной строки либо последнее значение,
+     * которое выдал объект последовательности.
+     *
 	 * @param mysqli $link
-	 *     A link identifier 
-	 * @return mixed
-	 *     The value of the AUTO_INCREMENT field that was updated by the previous query. 
-	 *     Returns zero if there was no previous query on the connection or 
-	 *     if the query did not update an AUTO_INCREMENT value. 
+     *      Объект mysqli
+	 * @param string|null $table_name
+     *
+	 * @return int|string
+     *      Вернет строку представляющую ID последней добавленной в базу записи.
 	 */
-	public function getLastId ($link, $table_name = null) {
+	public function lastInsertId ($link, $table_name = null) {
 
 		return mysqli_insert_id($link);
 	}
 
 
 	/**
-	 * Closes a previously opened database connection
-	 * 
-	 * @param mysqli $link
-	 *      A link identifier
+     * Закрытие соединения с базой
+     *
+     * @param mysqli $link
+     *      Объект mysqli
+     *
 	 * @return bool
-	 *      Returns TRUE on success or FALSE on failure.
+     *      Возвращает TRUE в случае успешного завершения
+     *      или FALSE в случае возникновения ошибки.
 	 */
-	public function closeConnect ($link) {
+	public function close ($link) {
 
 		return mysqli_close($link); 
-	}
-
-
-	/**
-	 * Frees the memory associated with a result
-	 * 
-	 * @param mysqli_result $result
-	 *     A result set identifier
-	 * @return void
-	 */
-	public function free ($result) {
-
-		mysqli_free_result($result);
 	}
 }

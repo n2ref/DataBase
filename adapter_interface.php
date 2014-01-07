@@ -1,36 +1,44 @@
 <?php
 
 
-interface IDataBaseAdapter {
+/**
+ * Interface IDBAdapter
+ */
+interface IDBAdapter {
 
-	public function connect ($host, $basename, $user, $pass);
+	public function connect ($host, $port, $basename, $user, $pass, $charset, $timezone);
 
 	public function connectError ($link);
 
-	public function connectErrno ($link);
-
 	public function error ($link);
-
-	public function errno ($link);
-
-	public function escapeString ($link, $escapestr);
 
 	public function query ($link, $query);
 
-	public function multyQuery ($link, $query);
+	public function prepare ($link, $query);
+
+    public function bindValue ($stmt, $parameter, $value,  $data_type);
+
+    public function execute ($stmt);
 
 	public function fetchOne ($result);
 
 	public function fetchRow ($result);
 
+	public function fetchPairs ($result);
+
+	public function fetchCol ($result, $col);
+
 	public function fetchAll ($result);
 
-	public function getNumRows ($result);
+	public function affectedRows ($link);
 
-	public function getLastId ($link, $table_name = '');
+	public function lastInsertId ($link, $table_name);
 
-	public function closeConnect ($link);
+	public function beginTransaction ($link);
 
-	public function free ($result);
+	public function commit ($link);
 
+	public function rollback ($link);
+
+    public function close ($link);
 }

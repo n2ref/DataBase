@@ -9,14 +9,14 @@ Simple example, initialize and select
 
 ```php
 require_once 'class.database.php';
-$DB = new DataBase('Mysqli', 'localhost', 'workbase', 'user_name', 'user_pass');
+$db = new DB('PDO_Mysql', 'localhost', 'workbase', 'user_name', 'user_pass');
 
-$result_array = $DB->fetchRow("
+$result_array = $db->fetchRow("
 		SELECT title, 
 			   description,
 			   data
 		FROM   table_name
-		WHERE  id = '?'
+		WHERE  id = ?
 ", $id);
 
 // also exists methods fetchAll, fetchOne
@@ -25,28 +25,26 @@ $result_array = $DB->fetchRow("
 Slightly more complex example of using a method 'query'
 
 ```php
-$DB = new DataBase('Mysqli', 'localhost', 'workbase', 'user_name', 'user_pass');
+$db = new DB('PDO_Mysql', 'localhost', 'workbase', 'user_name', 'user_pass');
 
 // here is screened and paste parameters in the query
 
-$is_add = $DB->query("
+$is_add = $db->query("
 		INSERT INTO table_items (
 			title, 
 			preview, 
 			content,
 			category_id, 
 			user_id, 
-			published, 
-			pubdate,
+			published,
 			last_modified
 		) VALUE (
-			':title', 
-			':preview', 
-			':content',
-			':category_id', 
-			':user_id',
-			'1', 
-			NOW(),
+			:title,
+			:preview,
+			:content,
+			:category_id,
+			:user_id,
+			'1',
 			NOW()
 		)
 	", array(
@@ -59,9 +57,9 @@ $is_add = $DB->query("
 );
 
 if ($is_add) {
-	$item_id = $DB->getLastId();
+	$item_id = $db->lastInsertId();
 }
 
-$DB->closeConnect();
+$db->close();
 
 ```

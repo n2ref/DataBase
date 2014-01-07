@@ -1,43 +1,67 @@
 <?php
 
-require_once(__DIR__.'/../adapter_interface.php');
+
+require_once(__DIR__ . '/../adapter_interface.php');
+
 
 /**
- *  Adapter oracle for oracle server
+ *  Адаптер oracle для oracle server
  */
-class OracleAdapter implements IDataBaseAdapter {
+class OracleAdapter implements IDBAdapter {
+
+    /**
+     * Признак авто сохранения в базу
+     * @var bool
+     */
+    private static $auto_commit = true;
 
 
-	/**
-	 * Connect to database
-	 * 
-	 * @param string $host
-	 *      The host name that holds your database
-	 * @param string $basename
-	 *      Name of the database to which you want 
-	 *      to connect
-	 * @param string $user
-	 *      User name under which it will connect 
-	 *      to the database
-	 * @param string $pass 
-	 *      Password to connect to the database 
-	 *      for the specified user
-	 * @return resource|bool
-	 *      Returns a connection identifier or FALSE on error. 
-	 */
-	public function connect ($host, $basename, $user, $pass = '') {
-		
-		return oci_connect($user, $pass, $host);
+    /**
+     * Подключение к базе
+     *
+     * @param string $host          Название хоста для подключения
+     * @param string|int $port      Номер порта для подключения
+     * @param string $basename      Название базы данных
+     * @param string $user          Логин пользователя
+     * @param string $pass          Пароль пользователя
+     * @param string $charset       Кодировка подключения
+     * @param string $time_zone     Временная зона
+     *
+     * @return resource
+     *      Идентификатор соединения Oracle
+     */
+    public function connect ($host, $port = '', $basename, $user, $pass = '', $charset = 'utf8', $time_zone = '') {
+
+        $connection_string = $host;
+
+        if ($port) {
+            $connection_string .= ':' . $port;
+        }
+
+        if ($basename) {
+            $connection_string .= '/' . $basename;
+        }
+
+        $link = oci_connect($user, $pass, $connection_string, $charset);
+
+        if ($link && $time_zone) {
+            $stmt = $this->prepare($link, "SET time_zone = :time_zone");
+            $this->bindValue($stmt, ':time_zone', $time_zone);
+            $stmt->execute();
+        }
+
+		return $link;
 	}
 
 
 	/**
-	 * Returns the last error found
-	 *
+     * Получение описания последней ошибки
+     *
 	 * @param resource $link
-	 *      Connection identifier
-	 * @return string|bool
-	 *      The Oracle error text or false
+     *      Идентификатор соединения Oracle
+     *
+	 * @return string
+     *      Текст ошибки
 	 */
 	public function connectError ($link) {
 		
@@ -50,34 +74,15 @@ class OracleAdapter implements IDataBaseAdapter {
 		return false;
 	}
 
-	
-	/**
-	 * Number of connection errors
-	 *
-	 * @param resource $link
-	 *      Connection identifier
-	 * @return int|bool
-	 *       The Oracle error number or false
-	 */
-	public function connectErrno ($link) {
-		
-		$error = oci_error($link);
-
-		if ($error !== false) {
-			return $error['code'];
-		}
-
-		return false;
-	}
-
 
 	/**
-	 * Returns the last error found
-	 * 
+     * Получение описания последней ошибки
+     *
 	 * @param resource $link
-	 *     Connection identifier
+     *      Идентификатор соединения Oracle
+     *
 	 * @return string
-	 *     The Oracle error text or false
+     *      Текст ошибки
 	 */
 	public function error ($link) {
 		
@@ -90,174 +95,154 @@ class OracleAdapter implements IDataBaseAdapter {
 		return false;
 	}
 
-	
+
+    /**
+     * Подготовка запроса к выполнению
+     *
+     * @param resource $link
+     *      Идентификатор соединения Oracle
+     * @param string $query
+     *      Текст запроса
+     *
+     * @return resource|bool
+     *      Идентификатор выражения OCI8 или FALSE в случае ошибки
+     */
+    public function prepare ($link, $query) {
+
+        return oci_parse($link, $query);
+    }
+
+
+    /**
+     * @param resource $stmt
+     *      Корректный идентификатор выражения OCI8
+     * @param string $parameter
+     *      Название параметра
+     * @param string $value
+     *      Значение связываемое с запросом
+     * @param int $data_type
+     *      Тип значения переменной $value.
+     *
+     * @return bool
+     *      Возвращает TRUE в случае успешного завершения
+     *      или FALSE в случае возникновения ошибки.
+     */
+    public function bindValue ($stmt, $parameter, $value, $data_type = SQLT_CHR) {
+
+        return oci_bind_by_name($stmt, $parameter, $value, $data_type);
+    }
+
+
+    /**
+     * Выполняет подготовленный запрос
+     *
+     * @param resource $stmt
+     *      Корректный идентификатор выражения OCI8
+     *
+     * @return bool
+     *      Возвращает TRUE в случае успешного завершения
+     *      или FALSE в случае возникновения ошибки.
+     */
+    public function execute ($stmt) {
+
+        if (self::$auto_commit) {
+            $mode = OCI_COMMIT_ON_SUCCESS;
+        } else {
+            $mode = OCI_NO_AUTO_COMMIT;
+        }
+
+        return oci_execute($stmt, $mode);
+    }
+
+
+    /**
+     * Начало транзакции
+     *
+     * @param resource $link
+     *      Идентификатор соединения Oracle
+     *
+     * @return bool
+     *      Возвращает TRUE в случае успешного завершения
+     *      или FALSE в случае возникновения ошибки.
+     */
+    public function beginTransaction ($link) {
+
+        return self::$auto_commit = false;
+    }
+
+
+    /**
+     * Фиксирует транзакцию
+     *
+     * @param resource $link
+     *      Идентификатор соединения Oracle
+     *
+     * @return bool
+     *      Возвращает TRUE в случае успешного завершения
+     *      или FALSE в случае возникновения ошибки.
+     */
+    public function commit ($link) {
+
+        $is_commit = oci_commit($link);
+        self::$auto_commit = true;
+
+        return $is_commit;
+    }
+
+
+    /**
+     * Откатывает изменения в базе данных сделанные в рамках текущей транзакции,
+     *
+     * @param resource $link
+     *      Идентификатор соединения Oracle
+     *
+     * @return bool
+     *      Возвращает TRUE в случае успешного завершения
+     *      или FALSE в случае возникновения ошибки.
+     */
+    public function rollback ($link) {
+
+        $is_rollback = oci_rollback($link);
+        self::$auto_commit = true;
+
+        return $is_rollback;
+    }
+
+
 	/**
-	 * Returns the last error found
-	 *
+     * Выполняет запрос к базе данных
+     *
 	 * @param resource $link
-	 *    Connection identifier
-	 * @return int
-	 *     The Oracle error number or false 
-	 */
-	public function errno ($link) {
-		
-		$error = oci_error($link);
-
-		if ($error !== false) {
-			return $error['code'];
-		}
-
-		return false;
-	}
-
-
-	/**
-	 * Escapes special characters in a string for use in an SQL statement, 
-	 * taking into account the current charset of the connection
-	 * 
-	 * @param resource $link
-	 *      A valid OCI statement identifier. 
-	 * @param string $escapestr
-	 *      The string to be escaped
-	 * @return string
-	 *      Returns an escaped string. 
-	 */
-	public function escapeString ($link, $escapestr) {
-
-		if ( ! is_numeric($escapestr)) {
-	    	if (get_magic_quotes_gpc()) {
-		        $escapestr = stripslashes($escapestr);
-		    }
-
-	        $escapestr = mysql_real_escape_string($escapestr);
-	    }
-	    return $escapestr;
-	}
-
-
-	/**
-	 * Performs a query on the database
-	 * 
-	 * @param resource $link
-	 *      A valid OCI statement identifier. 
+     *      Идентификатор соединения Oracle
 	 * @param string $query
-	 *      The query string
+     *      Текст запроса
+     *
 	 * @return mixed
-	 *      Returns a statement handle on success, or FALSE on error. 
 	 */
 	public function query ($link, $query) {
 
-		$stid = oci_parse($link, $query);
-		return $stid && oci_execute($stid) ? $stid : false;
+		$stmt = oci_parse($link, $query);
+		return $stmt && oci_execute($stmt) ? $stmt : false;
 	}
 
 
 	/**
-	 * Performs a query on the database
-	 * 
-	 * @param resource $link
-	 *      A valid OCI statement identifier. 
-	 * @param string $query
-	 *      The query, as a string
-	 * @return bool
-	 *      Returns a statement handle on success, or FALSE on error.  
-	 */
-	public function multyQuery ($link, $query) {
-
-		$delimiter    = ';';
-		$inString     = false;
-		$escChar      = false;
-		$sql          = '';
-		$stringChar   = '';
-		$sql_queries  = array();
-		$sqlRows      = explode ("\n", $query);
-		$delimiterLen = strlen ($delimiter);
-
-		do {
-			$sqlRow    = current($sqlRows) . "\n";
-			$sqlRowLen = strlen($sqlRow);
-			
-			for ($i = 0; $i < $sqlRowLen; $i) {
-				if ((substr(ltrim($sqlRow), $i, 2) === '--' || substr(ltrim($sqlRow), $i, 1) === '#') && 
-					! $inString
-				) {
-					break;
-				}
-
-				$znak = substr($sqlRow, $i, 1);
-				
-				if ($znak === '\'' || $znak === '"') {
-					if ($inString) {
-						if ( ! $escChar && $znak === $stringChar) {
-							$inString = false;
-						}
-
-					} else {
-						$stringChar = $znak;
-						$inString = true;
-					}
-				}
-
-				if ($znak === '\\' && substr($sqlRow, $i - 1, 2) !== '\\\\' ) {
-					$escChar = !$escChar;
-				
-				} else {
-					$escChar = false;
-				}
-				
-				if (substr($sqlRow, $i, $delimiterLen) === $delimiter) {
-					if ( ! $inString) {
-						$sql            = trim ( $sql );
-						$delimiterMatch = array();
-
-						if (preg_match('/^DELIMITER[[:space:]]*([^[:space:]] )$/i', $sql, $delimiterMatch)) {
-							$delimiter    = $delimiterMatch [1];
-							$delimiterLen = strlen ($delimiter);
-						
-						} else {
-							$sql_queries[] = $sql;
-						}
-
-						$sql = '';
-						continue;
-					}
-				}
-				$sql .= $znak;
-			}
-		} while (next($sqlRows) !== false);
-
-
-		foreach($sql_queries as $sql_query) {
-
-			$stid = oci_parse($link, $sql_query);		
-			
-			if ($stid && oci_execute($stid)) {
-				throw new ErrorQueryExecutionDataBaseException($this->error, $this->errno);
-			}
-		}
-
-		return true;
-	}
-
-
-	/**
-	 * Gets the first value of the first row of the query result
-	 * 
-	 * @param resource $result
-	 *      A result set identifier
+     * Возващает резельтат запроса с первым значением поля,
+     * из первой строки запроса
+     *
+	 * @param resource $statement
+     *      Корректный идентификатор выражения OCI8
+     *
 	 * @return string
-	 *      Returns the first value of the 
-	 *      first row of the query result
+     *      Первое значение из запроса,
+     *      либо false в случае ошибки
 	 */
-	public function fetchOne ($result) {
+	public function fetchOne ($statement) {
 
-		$row    = oci_fetch_assoc($result);
+		$row    = oci_fetch_assoc($statement);
 		$return = '';
 		if (is_array($row)) {
-			foreach ($row as $value) {
-				$return = $value;
-				break;
-			}			
+			$return = current($row);
 		}
 
 		return $return;
@@ -265,89 +250,130 @@ class OracleAdapter implements IDataBaseAdapter {
 
 
 	/**
-	 * Returns the next row from a query as an associative array
-	 * 
-	 * @param resource $result
-	 *     A result set identifier
-	 * @return array|bool
-	 *    Returns an associative array. 
-	 *    If there are no more rows in the statement then FALSE is returned. 
+     * Возващает результат запроса с указанным столбцом
+     * из результата запроса
+     *
+	 * @param resource $statement
+     *      Корректный идентификатор выражения OCI8
+	 * @param int $column_number
+     *      Номер необходимого столбца
+     *
+	 * @return array
+     *      Результирующий массив данных
 	 */
-	public function fetchRow ($result) {
+	public function fetchCol ($statement, $column_number = 1) {
 
-		return oci_fetch_assoc($result);
+        $column = array();
+
+        while ($row = oci_fetch_row($statement)) {
+            $column[] = $row[$column_number - 1];
+        }
+
+        return $column;
+	}
+
+
+    /**
+     * Возващает результат запроса в виде одномерного массива
+     * ключами которого выступает первое поле из запроса, а значениями второе поле
+     *
+     * @param resource $statement
+     *      Корректный идентификатор выражения OCI8
+     *
+     * @return array
+     *      Результирующий массив данных
+     */
+    public function fetchPairs ($statement) {
+
+        $pairs = array();
+
+        while ($tmp = oci_fetch_assoc($statement)) {
+            $pairs[current($tmp)] = next($tmp);
+        }
+
+        return $pairs;
+    }
+
+
+	/**
+     * Возващает результат запроса с первой строкой
+     * из результата запроса
+     *
+	 * @param resource $statement
+     *      Корректный идентификатор выражения OCI8
+     *
+	 * @return array
+     *      Результирующий массив данных
+	 */
+	public function fetchRow ($statement) {
+
+		return oci_fetch_assoc($statement);
 	}
 	
 
 	/**
-	 * Fetches multiple rows from a query into a two-dimensional array
-	 * 
-	 * @param resource $result
-	 *     A result set identifier
+     * Возващает результат запроса со всеми записями
+     *
+	 * @param resource $statement
+     *      Корректный идентификатор выражения OCI8
+     *
 	 * @return array
-	 *     Returns an array of associative
+     *      Результирующий массив данных
 	 */
-	public function fetchAll ($result) {
+	public function fetchAll ($statement) {
 
-		oci_fetch_all($result, $res);
+		oci_fetch_all($statement, $res);
         
         return $res;
 	}
 
 
 	/**
-	 * Returns number of rows affected during statement execution
-	 * 
-	 * @param resource $result
-	 *     A valid OCI statement identifier. 
-	 * @return int|bool
-	 *     Returns the number of rows affected as an integer, 
-	 *     or FALSE on errors. 
-	 */
-	public function getNumRows ($result) {
-
-		return oci_num_rows($result);
-	}
-
-
-	/**
-	 * Solutions of this method was not found
-	 * 
+     * -= ВСЕГДА ВОЗВРАЩАЕТ 0 =-
+     * Возвращает ID последней вставленной строки либо последнее значение,
+     * которое выдал объект последовательности.
+     *
 	 * @param resource $link
-	 *      Connection identifier
+     *      Идентификатор соединения Oracle
+	 * @param string $table_name
+     *      Название таблицы из которой нужно получить последний ID
+     *
 	 * @return int
-	 *     0 (zero)
+     *      Вернет строку представляющую ID последней добавленной в базу записи.
 	 */
-	public function getLastId ($link, $table_name = null) {
+	public function lastInsertId ($link, $table_name = null) {
 
 		return 0;
 	}
 
 
 	/**
-	 * Closes an Oracle connection
-	 * 
-	 * @param resource $link
-	 *      An Oracle connection identifier
-	 * @return bool
-	 *      Returns TRUE on success or FALSE on failure.
-	 */
-	public function closeConnect ($link) {
+     * Возвращает количество строк, измененных в процессе выполнения запроса
+     *
+	 * @param resource $stmt
+     *      Корректный идентификатор выражения OCI8
+     *
+	 * @return int|bool
+     *      Возвращает число затронутых строк в виде integer, либо FALSE при ошибке.
+     */
+	public function affectedRows ($stmt) {
 
-		return oci_close($link); 
+        return oci_num_rows($stmt);
 	}
 
 
 	/**
-	 * Frees all resources associated with statement or cursor
-	 * 
-	 * @param resource $result
-	 *     A valid OCI statement identifier. 
+     * Закрытие соединения с базой
+     *
+	 * @param resource $link
+     *      Идентификатор соединения Oracle
+     *
 	 * @return bool
-	 *     Returns TRUE on success or FALSE on failure. 
+     *      Возвращает TRUE в случае успешного завершения
+     *      или FALSE в случае возникновения ошибки.
 	 */
-	public function free ($result) {
+	public function close ($link) {
 
-		return oci_free_statement($result);
+		return oci_close($link); 
 	}
 }
